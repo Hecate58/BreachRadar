@@ -8,9 +8,9 @@ BreacheRadar_bot est un bot Telegram avancé dédié à la cybersécurité, offr
 
 - 🔍 Vérification des fuites de données
 - 🌐 Analyse de sécurité des URLs
-- 🕵️ Surveillance du darkweb
+- 🕵️ Surveillance continue des menaces de sécurité
+- 📊 Rapports de sécurité détaillés
 - 🛡️ Scan de vulnérabilités
-- 🔐 Vérification de mots de passe
 
 ## Prérequis
 
@@ -62,11 +62,8 @@ python bot.py
 
 ## Commandes Disponibles
 
-- `/checkbreach` - Vérifier les fuites de données
-- `/scanurl` - Analyser une URL
-- `/checkdarkweb` - Surveiller le darkweb
-- `/vulnscan` - Scanner les vulnérabilités
-- `/checkpassword` - Vérifier un mot de passe
+- `/securitycheck` -
+- `/scan` - 
 - `/report` - Générer un rapport de sécurité complet
 
 ## Sécurité et Confidentialité
@@ -75,9 +72,6 @@ python bot.py
 - Les analyses sont anonymes et confidentielles
 - Utilisation de techniques de scraping éthiques
 
-## Contributions
-
-Les contributions sont les bienvenues ! Veuillez consulter `CONTRIBUTING.md` pour plus de détails.
 
 ## Licence
 

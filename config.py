@@ -3,17 +3,17 @@
 
 # API Keys pour la surveillance du darkweb (services gratuits)
 # Laissez ces valeurs à None si vous n'avez pas les clés, le code s'adaptera
-REDDIT_CLIENT_ID = None  # Optionnel - obtenable gratuitement via https://www.reddit.com/prefs/apps
+REDDIT_CLIENT_ID = "1znsRGrxUXp0stoWuc3_JA"  # obtenable gratuitement via https://www.reddit.com/prefs/apps
 REDDIT_CLIENT_SECRET = None  # Optionnel 
 REDDIT_USER_AGENT = "PythonSecurityBot/1.0"  # User-agent pour les requêtes Reddit
 ALIENVAULT_API_KEY = None  # Optionnel - gratuit via https://otx.alienvault.com
+GITHUB_TOKEN = 'your_github_token'
+URLSCAN_API_KEY = '01958fa1-4181-7002-8768-500c7e53d586'
+VIRUSTOTAL_API_KEY = "0f694fa53021b262eb7e32bd3afc0b5757012cdb619156a2c461f425fbdc8c22"  # API key pour VirusTotal
 
 # Configuration du bot Telegram
 BOT_TOKEN = "8143357098:AAEZUsmztXNxwK8219JZX3-qaRXXqLfKiuY"  # Remplacez par votre token Telegram obtenu via BotFather
 WEBHOOK_URL = "https://your-domain.com/webhook"  # URL de votre webhook en production
-
-# API Keys pour les services tiers
-VIRUSTOTAL_API_KEY = "0f694fa53021b262eb7e32bd3afc0b5757012cdb619156a2c461f425fbdc8c22"  # API key pour VirusTotal
 
 # Configuration des services
 # Nombre maximum de résultats à afficher dans les réponses
