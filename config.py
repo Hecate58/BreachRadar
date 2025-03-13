@@ -13,9 +13,7 @@ BOT_TOKEN = "8143357098:AAEZUsmztXNxwK8219JZX3-qaRXXqLfKiuY"  # Remplacez par vo
 WEBHOOK_URL = "https://your-domain.com/webhook"  # URL de votre webhook en production
 
 # API Keys pour les services tiers
-HIBP_API_KEY = "YOUR_HIBP_API_KEY"  # API key pour HaveIBeenPwned
 VIRUSTOTAL_API_KEY = "0f694fa53021b262eb7e32bd3afc0b5757012cdb619156a2c461f425fbdc8c22"  # API key pour VirusTotal
-SHODAN_API_KEY = "YOUR_SHODAN_API_KEY"  # API key pour Shodan
 
 # Configuration des services
 # Nombre maximum de résultats à afficher dans les réponses

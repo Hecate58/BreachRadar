@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from telegram import ParseMode
 import requests
 import time
+from telegram.constants import ParseMode
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -22,6 +24,7 @@ from utils.url_dna.analyzer import analyze_url
 import utils.whois as whois
 import utils.vuln_scanner as vuln_scanner
 import utils.leaked_credentials as leaked_credentials
+from utils.darkweb_monitor import check_darkweb
 
 # Configuration du système de journalisation
 logging.basicConfig(
@@ -243,10 +246,18 @@ async def check_breach(update: Update, context: ContextTypes.DEFAULT_TYPE, input
             return
         input_data = args[0]
     
-    await update.message.reply_text(f"🔍 Recherche de violations pour {input_data}...")
+    # Message d'attente pour informer l'utilisateur
+    waiting_message = await update.message.reply_text(
+        f"🔍 Recherche de violations pour {input_data}...\n\n"
+        f"⏳ Cette opération peut prendre quelques instants, veuillez patienter."
+    )
     
     try:
+        # Appel à la fonction de vérification des fuites
         results = breaches.check_breaches(input_data)
+        
+        # Supprimer le message d'attente
+        await waiting_message.delete()
         
         if results:
             breach_count = len(results)
@@ -260,155 +271,36 @@ async def check_breach(update: Update, context: ContextTypes.DEFAULT_TYPE, input
                 message += f"... et {breach_count - 5} autres violations.\n\n"
                 
             message += "ℹ️ Il est recommandé de changer vos mots de passe sur les services concernés."
+            
+            # Ajouter des conseils si des mots de passe ont été compromis
+            password_breach = any("mot de passe" in breach['data_classes'].lower() for breach in results)
+            if password_breach:
+                message += "\n\n🔑 <b>Conseils de sécurité :</b>\n"
+                message += "• Utilisez des mots de passe uniques pour chaque service\n"
+                message += "• Activez l'authentification à deux facteurs quand c'est possible\n"
+                message += "• Utilisez un gestionnaire de mots de passe\n"
+                message += "• Vérifiez régulièrement vos comptes pour des activités suspectes"
         else:
             message = f"✅ Bonne nouvelle! Aucune violation de données détectée pour {input_data}.\n\n"
             message += "Continuez de surveiller régulièrement pour rester protégé."
         
-        await update.message.reply_html(message)
-        
-    except Exception as e:
-        logger.error(f"Erreur lors de la vérification des violations: {e}")
-        await update.message.reply_text(f"Une erreur s'est produite lors de la recherche. Veuillez réessayer plus tard.")
-
-async def scan_url(update: Update, context: ContextTypes.DEFAULT_TYPE, input_url=None) -> None:
-    """Analyse une URL pour détecter des menaces."""
-    if not input_url:
-        args = context.args
-        if not args:
-            await update.message.reply_text("Veuillez spécifier une URL à analyser. Exemple: /scanurl https://example.com")
-            return
-        input_url = args[0]
-    
-    await update.message.reply_text(f"🔍 Analyse de l'URL {input_url} en cours...")
-    
-    try:
-        results = analyze_url(input_url)
-        
-        if results["safe"]:
-            message = f"✅ L'URL {input_url} semble sûre.\n\n"
-            message += f"<b>Détails :</b>\n"
-            message += f"🔹 Réputation: {results['reputation_score']}/100\n"
-            message += f"🔹 SSL valide: {'Oui' if results['ssl_valid'] else 'Non'}\n"
-            message += f"🔹 Âge du domaine: {results['domain_age']}\n"
-        else:
-            message = f"⚠️ L'URL {input_url} présente des risques potentiels !\n\n"
-            message += f"<b>Alertes détectées :</b>\n"
-            
-            for alert in results["alerts"]:
-                message += f"🔸 {alert}\n"
-                
-            message += f"\n<b>Recommandation :</b> Évitez de visiter cette URL ou de partager des informations sensibles."
-        
-        await update.message.reply_html(message)
-        
-    except Exception as e:
-        logger.error(f"Erreur lors de l'analyse de l'URL: {e}")
-        await update.message.reply_text(f"Une erreur s'est produite lors de l'analyse. Veuillez vérifier que l'URL est valide et réessayer.")
-
-async def check_darkweb(update: Update, context: ContextTypes.DEFAULT_TYPE, input_term=None) -> None:
-    """Recherche des mentions sur le darkweb."""
-    if not input_term:
-        args = context.args
-        if not args:
-            await update.message.reply_text("Veuillez spécifier un terme à rechercher. Exemple: /checkdarkweb monentreprise")
-            return
-        input_term = args[0]
-    
-    # Message d'attente pour informer l'utilisateur
-    waiting_message = await update.message.reply_text(
-        f"🕸️ Recherche de '{input_term}' sur le darkweb en cours...\n\n"
-        f"⏳ Cette opération peut prendre quelques instants, veuillez patienter."
-    )
-    
-    try:
-        # Appel à la fonction de recherche sur le darkweb
-        results = darkweb.search_darkweb(input_term)
-        
-        # Supprimer le message d'attente
-        await waiting_message.delete()
-        
-        # Traiter les résultats
-        if results.get("mentions"):
-            mention_count = len(results["mentions"])
-            
-            # Message initial avec le résumé
-            message = f"⚠️ {mention_count} mention(s) trouvée(s) sur le darkweb pour '{input_term}':\n\n"
-            
-            # Ajouter les détails des mentions (limiter à 3 pour éviter des messages trop longs)
-            verified_count = 0
-            enriched_count = 0
-            
-            for mention in results["mentions"][:3]:
-                # Ajouter des emojis différents pour les mentions vérifiées et enrichies
-                if mention.get("verified", False):
-                    emoji = "🔴"
-                    verified_count += 1
-                elif mention.get("enriched", False):
-                    emoji = "🟠"
-                    enriched_count += 1
-                else:
-                    emoji = "🟡"
-                
-                message += f"{emoji} <b>{mention['source']}</b> ({mention['date']})\n"
-                message += f"    Contexte: {mention['context']}\n"
-                message += f"    Catégorie: {mention['category']}\n"
-                message += f"    Sévérité: {mention.get('severity', 'Non spécifiée')}\n\n"
-            
-            if mention_count > 3:
-                message += f"... et {mention_count - 3} autres mentions.\n\n"
-            
-            # Ajouter le niveau de risque et une description
-            risk_level = results["risk_level"]
-            message += f"<b>Niveau de risque estimé:</b> {risk_level}/10"
-            
-            if risk_level >= 7:
-                message += " (Élevé)\n\n"
-                message += "⚠️ <b>Action recommandée:</b> Des mesures immédiates sont nécessaires pour protéger vos données et identifiants."
-            elif risk_level >= 4:
-                message += " (Moyen)\n\n"
-                message += "⚠️ <b>Action recommandée:</b> Renforcer votre sécurité et surveiller attentivement les activités suspectes."
-            else:
-                message += " (Faible)\n\n"
-                message += "ℹ️ <b>Action recommandée:</b> Continuer de surveiller régulièrement pour rester protégé."
-            
-            # Ajouter des recommandations spécifiques
-            message += "\n\n<b>Recommandations:</b>\n"
-            recommendations = darkweb.get_recommended_actions(risk_level, results["mentions"])
-            for i, recommendation in enumerate(recommendations[:5], 1):
-                message += f"{i}. {recommendation}\n"
-            
-            # Ajouter une note sur la source des données si des mentions sont enrichies
-            if "enriched" in results or enriched_count > 0:
-                message += "\n<i>Note: Certaines de ces informations sont basées sur des analyses de tendances et des corrélations avec des fuites connues, et peuvent ne pas représenter des mentions directes.</i>"
-        else:
-            message = f"✅ Bonne nouvelle! Aucune mention significative de '{input_term}' n'a été trouvée sur le darkweb.\n\n"
-            message += "Continuez de surveiller régulièrement pour rester protégé."
-            
-            # Ajouter une note sur la portée de la recherche
-            message += "\n\n<i>Note: Notre recherche couvre les principales fuites de données accessibles publiquement, mais ne peut pas garantir une couverture exhaustive du darkweb.</i>"
-        
-        # Si une erreur est présente dans les résultats, l'ajouter au message
-        if "error" in results:
-            message += f"\n\n<i>Note: {results['error']}</i>"
-        
         # Créer des boutons pour d'autres actions
         keyboard = [
             [
-                InlineKeyboardButton("📊 Générer un rapport complet", callback_data="cmd_report"),
-                InlineKeyboardButton("🔑 Vérifier mot de passe", switch_inline_query_current_chat="/checkpassword ")
+                InlineKeyboardButton("🔍 Analyser une URL", switch_inline_query_current_chat="/scanurl "),
+                InlineKeyboardButton("🕸️ Recherche Darkweb", switch_inline_query_current_chat="/checkdarkweb ")
             ],
             [
-                InlineKeyboardButton("🔍 Vérifier violations de données", switch_inline_query_current_chat="/checkbreach "),
-                InlineKeyboardButton("🛡️ Scanner vulnérabilités", switch_inline_query_current_chat="/vulnscan ")
+                InlineKeyboardButton("🔑 Vérifier mot de passe", switch_inline_query_current_chat="/checkpassword "),
+                InlineKeyboardButton("📊 Générer rapport", callback_data="cmd_report")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # Envoyer le message final avec les boutons
         await update.message.reply_html(message, reply_markup=reply_markup)
         
     except Exception as e:
-        logger.error(f"Erreur lors de la recherche sur le darkweb: {e}")
+        logger.error(f"Erreur lors de la vérification des violations: {e}")
         
         # Supprimer le message d'attente en cas d'erreur
         try:
@@ -417,10 +309,117 @@ async def check_darkweb(update: Update, context: ContextTypes.DEFAULT_TYPE, inpu
             pass
         
         await update.message.reply_text(
-            f"Une erreur s'est produite lors de la recherche sur le darkweb: {str(e)}\n"
-            f"Veuillez réessayer plus tard ou contacter l'administrateur du bot."
+            f"Une erreur s'est produite lors de la recherche. Veuillez réessayer plus tard.\n"
+            f"Détails: {str(e)}"
         )
 
+async def scan_url(update: Update, context: ContextTypes.DEFAULT_TYPE, input_url=None) -> None:
+    """Analyse une URL pour détecter des menaces potentielles."""
+    if not input_url:
+        args = context.args
+        if not args:
+            await update.message.reply_text("Veuillez spécifier une URL à analyser. Exemple: /scanurl https://example.com")
+            return
+        input_url = args[0]
+    
+    # Vérifier le format de l'URL
+    if not input_url.startswith(('http://', 'https://')):
+        input_url = 'https://' + input_url
+    
+    # Message d'attente
+    waiting_message = await update.message.reply_text(
+        f"🔍 Analyse de l'URL {input_url} en cours...\n\n"
+        f"⏳ Cette opération peut prendre quelques instants, veuillez patienter."
+    )
+    
+    try:
+        # Appel à la fonction d'analyse d'URL
+        results = analyze_url(input_url)
+        
+        # Supprimer le message d'attente
+        await waiting_message.delete()
+        
+        # Préparer le message de résultat
+        if results["safe"]:
+            safety_emoji = "✅"
+            safety_text = "sûre"
+            safety_color = "green"
+        else:
+            safety_emoji = "⚠️"
+            safety_text = "potentiellement dangereuse"
+            safety_color = "red"
+        
+        # Créer le message principal avec des emoji pour la lisibilité
+        message = f"{safety_emoji} <b>Résultat d'analyse</b>: Cette URL est <span style='color:{safety_color}'>{safety_text}</span>\n\n"
+        
+        # Ajouter les détails
+        message += f"🔗 <b>URL analysée:</b> {results['url']}\n"
+        message += f"📊 <b>Score de réputation:</b> {results['reputation_score']}/100\n"
+        message += f"🛡️ <b>Certificat SSL:</b> {'Valide' if results['ssl_valid'] else 'Non valide ou absent'}\n"
+        message += f"📅 <b>Âge du domaine:</b> {results['domain_age']}\n"
+        
+        # Ajouter les redirections si présentes
+        if len(results['redirects']) > 1:
+            message += f"\n⤵️ <b>Redirections ({len(results['redirects'])-1}):</b>\n"
+            # Montrer juste la première et la dernière pour ne pas surcharger
+            message += f"• {results['redirects'][0]['url']} → ... → {results['redirects'][-1]['url']}\n"
+        
+        # Ajouter les alertes si présentes, limitées à 5 pour ne pas surcharger
+        if results["alerts"]:
+            message += f"\n🚨 <b>Alertes ({len(results['alerts'])}):</b>\n"
+            for i, alert in enumerate(results["alerts"][:5], 1):
+                message += f"{i}. {alert}\n"
+            
+            if len(results["alerts"]) > 5:
+                message += f"... et {len(results['alerts']) - 5} autres alertes.\n"
+        
+        # Ajouter des recommandations basées sur les résultats
+        message += "\n🔒 <b>Recommandations:</b>\n"
+        if results["safe"]:
+            message += "• Cette URL semble sûre, mais restez toujours vigilant\n"
+            message += "• Vérifiez que l'URL correspond bien au site que vous souhaitez visiter\n"
+        else:
+            message += "• <b>Évitez de visiter cette URL</b> ou de partager des informations sensibles\n"
+            message += "• Ne téléchargez aucun fichier depuis ce site\n"
+            
+            # Recommandations spécifiques selon les problèmes détectés
+            if not results["ssl_valid"]:
+                message += "• Ne soumettez jamais d'informations confidentielles sur un site sans HTTPS\n"
+            
+            if any("redirect" in alert.lower() for alert in results["alerts"]):
+                message += "• Méfiez-vous des redirections vers des domaines différents\n"
+            
+            if any("phishing" in alert.lower() for alert in results["alerts"]):
+                message += "• Ce site pourrait être une tentative de phishing pour voler vos identifiants\n"
+        
+        # Créer des boutons pour d'autres actions
+        keyboard = [
+            [
+                InlineKeyboardButton("✓ Vérifier email", switch_inline_query_current_chat="/checkbreach "),
+                InlineKeyboardButton("🕸️ Recherche Darkweb", switch_inline_query_current_chat="/checkdarkweb ")
+            ],
+            [
+                InlineKeyboardButton("🛡️ Scanner domaine", switch_inline_query_current_chat="/vulnscan "),
+                InlineKeyboardButton("📊 Générer rapport", callback_data="cmd_report")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_html(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'analyse de l'URL: {e}")
+        
+        # Supprimer le message d'attente en cas d'erreur
+        try:
+            await waiting_message.delete()
+        except:
+            pass
+        
+        await update.message.reply_text(
+            f"Une erreur s'est produite lors de l'analyse de l'URL. Veuillez vérifier que l'URL est valide et réessayer.\n"
+            f"Détails: {str(e)}"
+        )
 async def vuln_scan(update: Update, context: ContextTypes.DEFAULT_TYPE, input_domain=None) -> None:
     """Vérifie les vulnérabilités connues pour un domaine."""
     if not input_domain:
