@@ -1,0 +1,6 @@
+python-telegram-bot==20.6
+python-whois==0.8.0
+tldextract==5.1.1
+requests==2.31.0
+beautifulsoup4==4.12.2
+flask==2.0.1
