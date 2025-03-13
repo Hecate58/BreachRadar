@@ -3,7 +3,7 @@
 
 """
 Module officiel implémentant les requêtes WHOIS pour le bot de cybersécurité.
-Cette implémentation remplace la version simulée dans fix_whois.py.
+
 """
 
 import whois

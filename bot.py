@@ -1,25 +1,9 @@
-def main() -> None:
-    """Fonction principale pour démarrer le bot."""
-    print("Démarrage du bot...")
-    
-    # Dans la fonction main()
-    application.add_handler(CommandHandler("scanurl", scan_url, filters=~filters.FORWARDED))
-
-    # Supprimer explicitement tout webhook et requêtes en attente
-    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true")
-    print("Webhook supprimé")
-    
-    # Attendre un instant pour s'assurer que tout est propre
-    time.sleep(2)
-    
-    # Créer l'application et passer le token du bot
-    application = Application.builder().token(BOT_TOKEN).build()
-     
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import logging
+import requests
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -49,7 +33,7 @@ logger = logging.getLogger(__name__)
 # États de conversation
 AWAITING_INPUT = 0
 
-
+# Fonctions pour les commandes du bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Commande de démarrage avec présentation du bot et commandes cliquables."""
     user = update.effective_user
@@ -118,59 +102,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Fournit une aide détaillée sur les commandes disponibles avec commandes cliquables."""
     
-    # Message d'accueil avec guide détaillé des commandes
-    # Les commandes sont rendues cliquables grâce au format Telegram
-    help_text = (
-        "📖 <b>Guide détaillé des commandes</b>\n\n"
-        "/checkbreach - <b>Vérification de violations de données</b>\n"
-        "Vérifie si un email ou domaine a été impliqué dans des fuites.\n"
-        "Exemple: <code>/checkbreach example@gmail.com</code>\n\n"
-        
-        "/scanurl - <b>Analyse de sécurité d'URL</b>\n"
-        "Détecte des menaces potentielles, phishing ou malwares.\n"
-        "Exemple: <code>/scanurl https://example.com/page</code>\n\n"
-        
-        "/checkdarkweb - <b>Surveillance du darkweb</b>\n"
-        "Recherche des mentions d'un terme sur le darkweb.\n"
-        "Exemple: <code>/checkdarkweb monentreprise</code>\n\n"
-        
-        "/vulnscan - <b>Scan de vulnérabilités</b>\n"
-        "Vérifie si un domaine présente des vulnérabilités connues.\n"
-        "Exemple: <code>/vulnscan example.com</code>\n\n"
-        
-        "/checkpassword - <b>Vérification de mots de passe</b>\n"
-        "Vérifie si un mot de passe a été compromis (utilise un hash sécurisé).\n"
-        "Exemple: <code>/checkpassword MonMotDePasse123</code>\n\n"
-        
-        "/report - <b>Génération de rapport</b>\n"
-        "Génère un rapport complet de toutes vos analyses.\n\n"
-        
-        "/help - <b>Aide détaillée</b>\n"
-        "Affiche ce message d'aide.\n\n"
-        
-        "🔒 <b>Confidentialité</b>: Toutes les données sont traitées de manière sécurisée et ne sont pas stockées après l'analyse."
-    )
-    
-    # Ajouter des boutons pour faciliter l'utilisation des commandes
-    keyboard = [
-        [
-            InlineKeyboardButton("✓ Vérifier email", switch_inline_query_current_chat="/checkbreach "),
-            InlineKeyboardButton("🔍 Analyser URL", switch_inline_query_current_chat="/scanurl ")
-        ],
-        [
-            InlineKeyboardButton("🕸️ Recherche Darkweb", switch_inline_query_current_chat="/checkdarkweb "),
-            InlineKeyboardButton("🛡️ Scanner domaine", switch_inline_query_current_chat="/vulnscan ")
-        ],
-        [
-            InlineKeyboardButton("🔑 Vérifier mot de passe", switch_inline_query_current_chat="/checkpassword "),
-            InlineKeyboardButton("📊 Générer rapport", switch_inline_query_current_chat="/report")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_html(help_text, reply_markup=reply_markup)
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Fournit une aide détaillée sur les commandes disponibles."""
+    # Message d'aide avec guide détaillé des commandes
     help_text = (
         "📖 <b>Guide détaillé des commandes</b>\n\n"
         "<b>/checkbreach [email ou domaine]</b>\n"
@@ -457,7 +389,6 @@ async def check_darkweb(update: Update, context: ContextTypes.DEFAULT_TYPE, inpu
             f"Veuillez réessayer plus tard ou contacter l'administrateur du bot."
         )
 
-
 async def vuln_scan(update: Update, context: ContextTypes.DEFAULT_TYPE, input_domain=None) -> None:
     """Vérifie les vulnérabilités connues pour un domaine."""
     if not input_domain:
@@ -615,11 +546,18 @@ def main() -> None:
     # Créer l'application et passer le token du bot
     application = Application.builder().token(BOT_TOKEN).build()
 
+    # Supprimer explicitement tout webhook et requêtes en attente
+    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true")
+    print("Webhook supprimé")
+    
+    # Attendre un instant pour s'assurer que tout est propre
+    time.sleep(2)
+
     # Ajouter les gestionnaires de commandes
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("checkbreach", check_breach))
-    application.add_handler(CommandHandler("scanurl", scan_url))
+    application.add_handler(CommandHandler("scanurl", scan_url, filters=~filters.FORWARDED))
     application.add_handler(CommandHandler("checkdarkweb", check_darkweb))
     application.add_handler(CommandHandler("vulnscan", vuln_scan))
     application.add_handler(CommandHandler("checkpassword", check_password))
@@ -643,6 +581,7 @@ def main() -> None:
 
     # Démarrer le bot en mode polling (pour le développement)
     # Pour la production, utiliser le mode webhook avec set_webhook.py
+    print("Démarrage du bot...")
     application.run_polling()
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import requests
-import fix_whois as whois
+import utils.whois as whois
 import logging
 import hashlib
 import re

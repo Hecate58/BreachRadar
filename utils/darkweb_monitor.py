@@ -9,7 +9,7 @@ import time
 import hashlib
 import re
 import random
-import fix_whois as whois
+import utils.whois as whois
 import urllib.parse
 
 # Importation de BeautifulSoup - vous devrez installer cette dépendance

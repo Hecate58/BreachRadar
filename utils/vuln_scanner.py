@@ -5,12 +5,15 @@ import requests
 import logging
 import json
 import datetime
+import time
 import re
 import tldextract
 import socket
 import ssl
-import fix_whois as whois
-
+import dns.resolver
+import utils.whois as whois
+from urllib.parse import urlparse, urljoin
+from config import API_TIMEOUT
 
 # Configuration du système de journalisation
 logging.basicConfig(
@@ -19,14 +22,56 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# API URLs
-SHODAN_BASE_URL = "https://api.shodan.io"
-SHODAN_HOST_URL = f"{SHODAN_BASE_URL}/shodan/host"
-SHODAN_DNS_URL = f"{SHODAN_BASE_URL}/dns/resolve"
-
 # En-têtes communs pour les requêtes
 HEADERS = {
-    "User-Agent": "Cybersecurity-Telegram-Bot"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "DNT": "1"
+}
+
+# Ports communs à scanner
+COMMON_PORTS = [21, 22, 25, 53, 80, 443, 8080, 8443]
+
+# En-têtes de sécurité à vérifier
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": {
+        "description": "Active la protection HSTS qui force les connexions HTTPS",
+        "recommendation": "Ajouter l'en-tête 'Strict-Transport-Security: max-age=31536000; includeSubDomains'",
+        "severity": "Moyenne"
+    },
+    "Content-Security-Policy": {
+        "description": "Définit la politique de sécurité du contenu pour prévenir les attaques XSS",
+        "recommendation": "Ajouter l'en-tête 'Content-Security-Policy' avec une configuration appropriée",
+        "severity": "Moyenne"
+    },
+    "X-Content-Type-Options": {
+        "description": "Empêche le navigateur d'interpréter les fichiers comme un type MIME différent",
+        "recommendation": "Ajouter l'en-tête 'X-Content-Type-Options: nosniff'",
+        "severity": "Faible"
+    },
+    "X-Frame-Options": {
+        "description": "Protège contre le clickjacking en empêchant le site d'être affiché dans un iframe",
+        "recommendation": "Ajouter l'en-tête 'X-Frame-Options: DENY' ou 'X-Frame-Options: SAMEORIGIN'",
+        "severity": "Moyenne"
+    },
+    "X-XSS-Protection": {
+        "description": "Active la protection XSS du navigateur",
+        "recommendation": "Ajouter l'en-tête 'X-XSS-Protection: 1; mode=block'",
+        "severity": "Faible"
+    },
+    "Referrer-Policy": {
+        "description": "Contrôle les informations de référent envoyées lors de la navigation",
+        "recommendation": "Ajouter l'en-tête 'Referrer-Policy: strict-origin-when-cross-origin'",
+        "severity": "Faible"
+    },
+    "Permissions-Policy": {
+        "description": "Contrôle quelles fonctionnalités et API peuvent être utilisées",
+        "recommendation": "Ajouter l'en-tête 'Permissions-Policy' avec les restrictions appropriées",
+        "severity": "Faible"
+    }
 }
 
 # Liste des vulnérabilités courantes à vérifier
@@ -126,18 +171,6 @@ def scan_vulnerabilities(domain):
         if server_info:
             results["server_info"].update(server_info)
         
-        # Si nous avons une clé API Shodan, utiliser Shodan pour des informations supplémentaires
-        if SHODAN_API_KEY:
-            shodan_results = scan_with_shodan(domain)
-            if shodan_results:
-                # Mettre à jour les informations du serveur
-                results["server_info"]["technologies"].extend(shodan_results.get("technologies", []))
-                results["server_info"]["ports"].extend(shodan_results.get("ports", []))
-                results["server_info"]["last_updated"] = shodan_results.get("last_update", results["server_info"]["last_updated"])
-                
-                # Ajouter les vulnérabilités trouvées par Shodan
-                results["vulnerabilities"].extend(shodan_results.get("vulnerabilities", []))
-        
         # Vérifier les vulnérabilités courantes basées sur les informations du serveur
         custom_vulns = check_common_vulnerabilities(results["server_info"])
         results["vulnerabilities"].extend(custom_vulns)
@@ -145,6 +178,27 @@ def scan_vulnerabilities(domain):
         # Vérifier les problèmes de configuration SSL/TLS
         ssl_vulns = check_ssl_vulnerabilities(domain)
         results["vulnerabilities"].extend(ssl_vulns)
+        
+        # Vérifier les en-têtes de sécurité manquants
+        security_header_vulns = check_security_headers(domain)
+        results["vulnerabilities"].extend(security_header_vulns)
+        
+        # Vérifier l'âge du domaine (les domaines récents sont plus suspects)
+        domain_age_vulns = check_domain_age(domain)
+        if domain_age_vulns:
+            results["vulnerabilities"].append(domain_age_vulns)
+        
+        # Vérifier les configurations DNS
+        dns_vulns = check_dns_configuration(domain)
+        results["vulnerabilities"].extend(dns_vulns)
+        
+        # Vérifier les ports ouverts
+        open_ports = scan_open_ports(domain)
+        results["server_info"]["ports"] = open_ports
+        
+        # Vérifier la présence de pages sensibles
+        sensitive_pages_vulns = check_sensitive_pages(domain)
+        results["vulnerabilities"].extend(sensitive_pages_vulns)
         
         # Éliminer les doublons dans les vulnérabilités
         results["vulnerabilities"] = deduplicate_vulnerabilities(results["vulnerabilities"])
@@ -217,6 +271,18 @@ def get_server_info(domain):
         # Analyser les technologies à partir des en-têtes
         server_info["technologies"] = extract_technologies_from_headers(response.headers)
         
+        # Vérifier le contenu HTML pour détecter d'autres technologies
+        try:
+            html_response = requests.get(
+                f"https://{domain}",
+                headers=HEADERS,
+                timeout=API_TIMEOUT
+            )
+            tech_from_html = extract_technologies_from_html(html_response.text)
+            server_info["technologies"].extend(tech_from_html)
+        except Exception as e:
+            logger.warning(f"Erreur lors de l'extraction des technologies depuis HTML: {e}")
+        
     except requests.exceptions.SSLError:
         # Essayer sans HTTPS
         try:
@@ -231,11 +297,26 @@ def get_server_info(domain):
             server_info["server"] = server_header
             server_info["technologies"] = extract_technologies_from_headers(response.headers)
             
+            # Vérifier le contenu HTML pour détecter d'autres technologies
+            try:
+                html_response = requests.get(
+                    f"http://{domain}",
+                    headers=HEADERS,
+                    timeout=API_TIMEOUT
+                )
+                tech_from_html = extract_technologies_from_html(html_response.text)
+                server_info["technologies"].extend(tech_from_html)
+            except Exception as e:
+                logger.warning(f"Erreur lors de l'extraction des technologies depuis HTML: {e}")
+            
         except Exception as e:
             logger.warning(f"Erreur lors de la récupération des en-têtes HTTP: {e}")
     
     except Exception as e:
         logger.warning(f"Erreur lors de la récupération des informations du serveur: {e}")
+    
+    # Enlever les doublons dans les technologies
+    server_info["technologies"] = list(set(server_info["technologies"]))
     
     return server_info
 
@@ -288,6 +369,107 @@ def extract_technologies_from_headers(headers):
         elif 'joomla' in generator.lower():
             technologies.append(f"Joomla {extract_version(generator)}")
     
+    # Détecter le CDN à partir des en-têtes
+    if any(cdn in str(headers) for cdn in ['cloudflare', 'fastly', 'akamai', 'cloudfront']):
+        if 'cloudflare' in str(headers).lower():
+            technologies.append("Cloudflare CDN")
+        elif 'fastly' in str(headers).lower():
+            technologies.append("Fastly CDN")
+        elif 'akamai' in str(headers).lower():
+            technologies.append("Akamai CDN")
+        elif 'cloudfront' in str(headers).lower():
+            technologies.append("AWS CloudFront")
+    
+    return technologies
+
+def extract_technologies_from_html(html_content):
+    """
+    Extrait les technologies à partir du contenu HTML.
+    
+    Args:
+        html_content (str): Contenu HTML
+        
+    Returns:
+        list: Technologies détectées
+    """
+    technologies = []
+    
+    # CMS populaires
+    cms_patterns = {
+        "WordPress": [
+            r'wp-content',
+            r'wp-includes',
+            r'wp-json',
+            r'<meta name="generator" content="WordPress'
+        ],
+        "Joomla": [
+            r'<meta name="generator" content="Joomla',
+            r'/templates/joomla',
+            r'/media/jui/'
+        ],
+        "Drupal": [
+            r'<meta name="Generator" content="Drupal',
+            r'drupal.js',
+            r'drupal.min.js',
+            r'/sites/default/files/'
+        ],
+        "Magento": [
+            r'<script [^>]*?Magento',
+            r'var BLANK_URL = \'.*mage',
+            r'magento.com/js'
+        ],
+        "Shopify": [
+            r'cdn.shopify.com',
+            r'shopify.com/s/',
+            r'Shopify.theme'
+        ],
+        "PrestaShop": [
+            r'PrestaShop',
+            r'/themes/[^/]+/assets/',
+            r'var prestashop ='
+        ]
+    }
+    
+    # Frameworks JavaScript
+    js_frameworks = {
+        "jQuery": [r'jquery', r'jQuery'],
+        "React": [r'react.js', r'react-dom', r'reactjs'],
+        "Vue.js": [r'vue.js', r'vue.min.js', r'vuejs'],
+        "Angular": [r'angular.js', r'angular.min.js', r'ng-app'],
+        "Bootstrap": [r'bootstrap.css', r'bootstrap.min.css', r'class="container'],
+        "Tailwind": [r'tailwind.css', r'tailwindcss'],
+        "Lodash": [r'lodash.js', r'lodash.min.js', r'_.template'],
+        "Moment.js": [r'moment.js', r'moment.min.js'],
+    }
+    
+    # Vérifier les CMS
+    for cms, patterns in cms_patterns.items():
+        if any(re.search(pattern, html_content) for pattern in patterns):
+            # Essayer d'extraire la version
+            version_match = re.search(r'{} ([0-9\.]+)'.format(cms), html_content)
+            if version_match:
+                technologies.append(f"{cms} {version_match.group(1)}")
+            else:
+                technologies.append(cms)
+    
+    # Vérifier les frameworks JS
+    for framework, patterns in js_frameworks.items():
+        if any(re.search(pattern, html_content) for pattern in patterns):
+            technologies.append(framework)
+    
+    # Serveurs d'analyse et de marketing
+    analytics_patterns = {
+        "Google Analytics": [r'google-analytics.com', r'gtag', r'ga\('],
+        "Google Tag Manager": [r'googletagmanager.com', r'gtm.js'],
+        "Facebook Pixel": [r'connect.facebook.net', r'fbq\('],
+        "Matomo": [r'matomo.js', r'piwik.js'],
+        "Hotjar": [r'hotjar.com', r'hjSiteSettings']
+    }
+    
+    for tool, patterns in analytics_patterns.items():
+        if any(re.search(pattern, html_content) for pattern in patterns):
+            technologies.append(tool)
+    
     return technologies
 
 def extract_version(header_value):
@@ -305,112 +487,6 @@ def extract_version(header_value):
     if version_match:
         return version_match.group(1)
     return ""
-
-def scan_with_shodan(domain):
-    """
-    Utilise l'API Shodan pour récupérer des informations sur un domaine.
-    
-    Args:
-        domain (str): Domaine à analyser
-        
-    Returns:
-        dict: Résultats de la recherche Shodan
-    """
-    if not SHODAN_API_KEY:
-        logger.warning("Clé API Shodan non configurée")
-        return None
-    
-    results = {
-        "technologies": [],
-        "ports": [],
-        "vulnerabilities": [],
-        "last_update": "N/A"
-    }
-    
-    try:
-        # Résoudre le domaine en adresse IP via Shodan
-        resolve_url = f"{SHODAN_DNS_URL}?hostnames={domain}&key={SHODAN_API_KEY}"
-        resolve_response = requests.get(
-            resolve_url,
-            headers=HEADERS,
-            timeout=API_TIMEOUT
-        )
-        
-        if resolve_response.status_code != 200:
-            logger.error(f"Erreur Shodan DNS: {resolve_response.status_code} - {resolve_response.text}")
-            return None
-        
-        ip_data = resolve_response.json()
-        ip_address = ip_data.get(domain)
-        
-        if not ip_address:
-            logger.warning(f"Impossible de résoudre {domain} via Shodan")
-            return None
-        
-        
-        # Extraire les ports
-        if "ports" in host_data:
-            results["ports"] = host_data["ports"]
-        
-        # Extraire la date de dernière mise à jour
-        if "last_update" in host_data:
-            last_update = datetime.datetime.strptime(
-                host_data["last_update"],
-                "%Y-%m-%dT%H:%M:%S.%f"
-            )
-            results["last_update"] = last_update.strftime("%Y-%m-%d")
-        
-        # Extraire les technologies et vulnérabilités des données de service
-        if "data" in host_data:
-            for service in host_data["data"]:
-                # Extraire les technologies
-                product = service.get("product", "")
-                version = service.get("version", "")
-                if product:
-                    tech = product
-                    if version:
-                        tech += f" {version}"
-                    results["technologies"].append(tech)
-                
-                # Extraire les vulnérabilités
-                if "vulns" in service:
-                    for cve_id, vuln_info in service["vulns"].items():
-                        # Créer une entrée de vulnérabilité
-                        vuln = {
-                            "type": vuln_info.get("summary", "Vulnérabilité inconnue"),
-                            "severity": map_cvss_to_severity(vuln_info.get("cvss", 0)),
-                            "description": vuln_info.get("summary", ""),
-                            "cve": cve_id,
-                            "recommendation": "Mettre à jour le logiciel vulnérable vers la dernière version."
-                        }
-                        results["vulnerabilities"].append(vuln)
-        
-    except Exception as e:
-        logger.error(f"Erreur lors de la recherche Shodan: {e}")
-        return None
-    
-    return results
-
-def map_cvss_to_severity(cvss):
-    """
-    Mappe un score CVSS à un niveau de sévérité.
-    
-    Args:
-        cvss (float): Score CVSS
-        
-    Returns:
-        str: Niveau de sévérité
-    """
-    if cvss >= 9.0:
-        return "Critique"
-    elif cvss >= 7.0:
-        return "Élevée"
-    elif cvss >= 4.0:
-        return "Moyenne"
-    elif cvss > 0:
-        return "Faible"
-    else:
-        return "Inconnue"
 
 def check_common_vulnerabilities(server_info):
     """
@@ -448,7 +524,73 @@ def check_common_vulnerabilities(server_info):
             
             vulnerabilities.append(vuln)
     
+    # Vérifier les CMS populaires et leurs vulnérabilités connues
+    for tech in server_info.get("technologies", []):
+        tech_lower = tech.lower()
+        
+        # WordPress ancien
+        if "wordpress" in tech_lower:
+            version = extract_version(tech)
+            if version and compare_versions(version, "5.8.0") < 0:
+                vulnerabilities.append({
+                    "type": "WordPress obsolète",
+                    "severity": "Moyenne",
+                    "description": f"Version {version} de WordPress obsolète qui peut contenir des vulnérabilités connues.",
+                    "recommendation": "Mettre à jour WordPress vers la dernière version stable."
+                })
+        
+        # Joomla ancien
+        elif "joomla" in tech_lower:
+            version = extract_version(tech)
+            if version and compare_versions(version, "3.10.0") < 0:
+                vulnerabilities.append({
+                    "type": "Joomla obsolète",
+                    "severity": "Moyenne",
+                    "description": f"Version {version} de Joomla obsolète qui peut contenir des vulnérabilités connues.",
+                    "recommendation": "Mettre à jour Joomla vers la dernière version stable."
+                })
+        
+        # Drupal ancien
+        elif "drupal" in tech_lower:
+            version = extract_version(tech)
+            if version and compare_versions(version, "9.0.0") < 0:
+                vulnerabilities.append({
+                    "type": "Drupal obsolète",
+                    "severity": "Moyenne",
+                    "description": f"Version {version} de Drupal obsolète qui peut contenir des vulnérabilités connues.",
+                    "recommendation": "Mettre à jour Drupal vers la dernière version stable."
+                })
+    
     return vulnerabilities
+
+def compare_versions(version1, version2):
+    """
+    Compare deux versions sémantiques.
+    
+    Args:
+        version1 (str): Première version
+        version2 (str): Deuxième version
+        
+    Returns:
+        int: -1 si version1 < version2, 0 si égales, 1 si version1 > version2
+    """
+    v1_parts = list(map(int, re.sub(r'[^\d.]', '', version1).split('.')))
+    v2_parts = list(map(int, re.sub(r'[^\d.]', '', version2).split('.')))
+    
+    # Ajouter des zéros si les versions n'ont pas le même nombre de parties
+    while len(v1_parts) < len(v2_parts):
+        v1_parts.append(0)
+    while len(v2_parts) < len(v1_parts):
+        v2_parts.append(0)
+    
+    # Comparer chaque partie
+    for i in range(len(v1_parts)):
+        if v1_parts[i] < v2_parts[i]:
+            return -1
+        elif v1_parts[i] > v2_parts[i]:
+            return 1
+    
+    return 0
 
 def check_ssl_vulnerabilities(domain):
     """
@@ -502,6 +644,24 @@ def check_ssl_vulnerabilities(domain):
                             "description": f"Le certificat SSL du serveur expire dans {int(days_to_expire)} jours.",
                             "recommendation": "Planifier le renouvellement du certificat SSL."
                         })
+                
+                # Vérifier l'algorithme de signature
+                if cert.get("signatureAlgorithm", "").startswith("sha1"):
+                    vulnerabilities.append({
+                        "type": "Algorithme de signature faible",
+                        "severity": "Moyenne",
+                        "description": "Le certificat utilise l'algorithme de signature SHA-1, qui est considéré comme faible.",
+                        "recommendation": "Utiliser un certificat avec une signature SHA-256 ou supérieure."
+                    })
+                
+                # Vérifier la présence de Subject Alternative Name
+                if "subjectAltName" not in cert:
+                    vulnerabilities.append({
+                        "type": "SAN manquant",
+                        "severity": "Faible",
+                        "description": "Le certificat ne contient pas de Subject Alternative Name (SAN).",
+                        "recommendation": "Utiliser un certificat avec des SAN pour une meilleure compatibilité avec les navigateurs modernes."
+                    })
     
     except (socket.gaierror, socket.timeout, ConnectionRefusedError):
         # Le domaine ne supporte pas HTTPS
@@ -521,6 +681,257 @@ def check_ssl_vulnerabilities(domain):
         })
     except Exception as e:
         logger.error(f"Erreur lors de la vérification SSL: {e}")
+    
+    return vulnerabilities
+
+def check_security_headers(domain):
+    """
+    Vérifie les en-têtes de sécurité manquants.
+    
+    Args:
+        domain (str): Domaine à vérifier
+        
+    Returns:
+        list: Vulnérabilités liées aux en-têtes de sécurité manquants
+    """
+    vulnerabilities = []
+    
+    try:
+        # Essayer HTTPS d'abord
+        try:
+            response = requests.head(
+                f"https://{domain}",
+                headers=HEADERS,
+                timeout=API_TIMEOUT,
+                allow_redirects=True
+            )
+        except:
+            # Si HTTPS échoue, essayer HTTP
+            response = requests.head(
+                f"http://{domain}",
+                headers=HEADERS,
+                timeout=API_TIMEOUT,
+                allow_redirects=True
+            )
+        
+        # Vérifier chaque en-tête de sécurité
+        for header, info in SECURITY_HEADERS.items():
+            if header not in response.headers:
+                vulnerabilities.append({
+                    "type": f"En-tête de sécurité {header} manquant",
+                    "severity": info["severity"],
+                    "description": info["description"],
+                    "recommendation": info["recommendation"]
+                })
+    
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification des en-têtes de sécurité: {e}")
+    
+    return vulnerabilities
+
+def check_domain_age(domain):
+    """
+    Vérifie l'âge du domaine et retourne une vulnérabilité si le domaine est récent.
+    
+    Args:
+        domain (str): Domaine à vérifier
+        
+    Returns:
+        dict or None: Vulnérabilité si le domaine est récent, None sinon
+    """
+    try:
+        if whois.is_domain_recently_created(domain, 90):
+            return {
+                "type": "Domaine récemment créé",
+                "severity": "Faible",
+                "description": "Le domaine a été créé récemment (moins de 90 jours), ce qui peut être un indicateur de phishing ou d'activité malveillante.",
+                "recommendation": "Vérifier la légitimité du domaine avant de partager des informations sensibles."
+            }
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification de l'âge du domaine: {e}")
+    
+    return None
+
+def check_dns_configuration(domain):
+    """
+    Vérifie la configuration DNS du domaine.
+    
+    Args:
+        domain (str): Domaine à vérifier
+        
+    Returns:
+        list: Vulnérabilités liées à la configuration DNS
+    """
+    vulnerabilities = []
+    
+    try:
+        # Vérifier les enregistrements SPF
+        try:
+            dns.resolver.resolve(domain, 'TXT')
+            has_spf = False
+            
+            for record in dns.resolver.resolve(domain, 'TXT'):
+                if 'v=spf1' in record.to_text():
+                    has_spf = True
+                    break
+            
+            if not has_spf:
+                vulnerabilities.append({
+                    "type": "Enregistrement SPF manquant",
+                    "severity": "Moyenne",
+                    "description": "Le domaine ne possède pas d'enregistrement SPF, ce qui peut faciliter l'usurpation d'adresses e-mail.",
+                    "recommendation": "Configurer un enregistrement SPF pour le domaine."
+                })
+        except Exception as e:
+            logger.warning(f"Erreur lors de la vérification SPF: {e}")
+        
+        # Vérifier les enregistrements DMARC
+        try:
+            dns.resolver.resolve('_dmarc.' + domain, 'TXT')
+        except:
+            vulnerabilities.append({
+                "type": "Enregistrement DMARC manquant",
+                "severity": "Moyenne",
+                "description": "Le domaine ne possède pas d'enregistrement DMARC, ce qui peut faciliter l'usurpation d'adresses e-mail et le phishing.",
+                "recommendation": "Configurer un enregistrement DMARC pour le domaine."
+            })
+        
+        # Vérifier DNSSEC
+        try:
+            dnssec_enabled = False
+            answers = dns.resolver.resolve(domain, 'NS')
+            for nameserver in answers:
+                ns = str(nameserver).rstrip('.')
+                try:
+                    dns.resolver.resolve(domain, 'DNSKEY')
+                    dnssec_enabled = True
+                    break
+                except dns.resolver.NoAnswer:
+                    pass
+                except Exception as e:
+                    pass
+            
+            if not dnssec_enabled:
+                vulnerabilities.append({
+                    "type": "DNSSEC désactivé",
+                    "severity": "Faible",
+                    "description": "Le domaine n'utilise pas DNSSEC, qui protège contre l'empoisonnement du cache DNS.",
+                    "recommendation": "Activer DNSSEC pour le domaine."
+                })
+        except Exception as e:
+            logger.warning(f"Erreur lors de la vérification DNSSEC: {e}")
+    
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification de la configuration DNS: {e}")
+    
+    return vulnerabilities
+
+def scan_open_ports(domain):
+    """
+    Scanne les ports ouverts d'un domaine.
+    
+    Args:
+        domain (str): Domaine à scanner
+        
+    Returns:
+        list: Ports ouverts détectés
+    """
+    open_ports = []
+    
+    try:
+        # Résoudre l'adresse IP
+        ip_address = socket.gethostbyname(domain)
+        
+        # Scanner les ports courants
+        for port in COMMON_PORTS:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)  # Timeout court pour ne pas bloquer trop longtemps
+                result = sock.connect_ex((ip_address, port))
+                if result == 0:  # Port ouvert
+                    open_ports.append(port)
+                sock.close()
+            except Exception as e:
+                logger.warning(f"Erreur lors du scan du port {port}: {e}")
+    
+    except Exception as e:
+        logger.error(f"Erreur lors du scan des ports: {e}")
+    
+    return open_ports
+
+def check_sensitive_pages(domain):
+    """
+    Vérifie la présence de pages sensibles.
+    
+    Args:
+        domain (str): Domaine à vérifier
+        
+    Returns:
+        list: Vulnérabilités liées aux pages sensibles
+    """
+    vulnerabilities = []
+    
+    # Liste de chemins sensibles à vérifier
+    sensitive_paths = [
+        "/admin",
+        "/login",
+        "/wp-admin",
+        "/administrator",
+        "/phpmyadmin",
+        "/config",
+        "/.git",
+        "/.env",
+        "/backup",
+        "/test",
+        "/dev",
+        "/api",
+        "/console",
+        "/database",
+        "/server-status",
+        "/status",
+        "/phpinfo.php",
+        "/info.php"
+    ]
+    
+    try:
+        # Déterminer si HTTPS est supporté
+        https_supported = True
+        try:
+            requests.head(f"https://{domain}", timeout=1)
+        except:
+            https_supported = False
+        
+        # Utiliser le bon protocole
+        protocol = "https" if https_supported else "http"
+        
+        # Vérifier chaque chemin
+        for path in sensitive_paths:
+            try:
+                url = f"{protocol}://{domain}{path}"
+                response = requests.head(
+                    url,
+                    headers=HEADERS,
+                    timeout=2,  # Timeout court pour chaque requête
+                    allow_redirects=False  # Ne pas suivre les redirections
+                )
+                
+                # Si la page existe (code 200, 401, 403)
+                if response.status_code in [200, 401, 403]:
+                    # Déterminer la sévérité selon le chemin
+                    severity = "Élevée" if any(critical in path for critical in [".env", ".git", "phpmyadmin", "config", "backup", "phpinfo"]) else "Moyenne"
+                    
+                    vulnerabilities.append({
+                        "type": f"Page sensible détectée: {path}",
+                        "severity": severity,
+                        "description": f"Une page sensible a été détectée à l'URL {url} (code {response.status_code}).",
+                        "recommendation": f"Restreindre l'accès à cette page ou la supprimer si elle n'est pas nécessaire."
+                    })
+            except Exception as e:
+                # Ignorer les erreurs, continuer avec le chemin suivant
+                pass
+    
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification des pages sensibles: {e}")
     
     return vulnerabilities
 
@@ -578,3 +989,7 @@ def calculate_risk_score(vulnerabilities):
     normalized_score = min(10, total_weight / 10)
     
     return round(normalized_score)
+
+# Ajouter une constante API_TIMEOUT si elle n'est pas définie dans config.py
+if not 'API_TIMEOUT' in globals():
+    API_TIMEOUT = 10
