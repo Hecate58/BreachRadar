@@ -1,6 +1,30 @@
+# Telegram Bot
 python-telegram-bot==20.6
-python-whois==0.8.0
-tldextract==5.1.1
+
+# Web Scraping et Requêtes
 requests==2.31.0
 beautifulsoup4==4.12.2
+
+# Analyse de Domaines
+python-whois==0.8.0
+tldextract==5.1.1
+
+# Génération de Rapports
+Jinja2==3.1.2
+pdfkit==1.0.0
+weasyprint==60.1  # Alternative pour la génération de PDF
+
+# Flask (si utilisé pour des webhooks)
 flask==2.0.1
+
+# Outils de Sécurité
+# Ajoutez ici d'autres bibliothèques de sécurité si nécessaire
+
+# Développement et Débogage
+# pytest==7.3.1  # Tests unitaires
+# black==23.3.0  # Formatage de code
+# flake8==6.0.0  # Linter
+
+# Optionnel : si vous utilisez des analyses plus avancées
+# numpy==1.24.3
+# pandas==2.0.1
