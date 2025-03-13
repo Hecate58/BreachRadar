@@ -72,22 +72,54 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"🔒 <b>Confidentialité</b>: Toutes les données sont traitées de manière sécurisée et ne sont pas stockées après l'analyse."
     )
     
-    # Créer des boutons pour les commandes principales
-    keyboard = [
+    # Créer des boutons de commande (insérer du texte dans la zone de saisie)
+    command_keyboard = [
         [
-            InlineKeyboardButton("✓ Vérifier email/domaine", switch_inline_query_current_chat="/checkbreach "),
-            InlineKeyboardButton("🔍 Analyser URL", switch_inline_query_current_chat="/scanurl ")
+            InlineKeyboardButton("⌨️ /checkbreach", switch_inline_query_current_chat="/checkbreach "),
+            InlineKeyboardButton("⌨️ /scanurl", switch_inline_query_current_chat="/scanurl ")
         ],
         [
-            InlineKeyboardButton("🕸️ Recherche Darkweb", switch_inline_query_current_chat="/checkdarkweb "),
-            InlineKeyboardButton("🛡️ Scanner vulnérabilités", switch_inline_query_current_chat="/vulnscan ")
+            InlineKeyboardButton("⌨️ /checkdarkweb", switch_inline_query_current_chat="/checkdarkweb "),
+            InlineKeyboardButton("⌨️ /vulnscan", switch_inline_query_current_chat="/vulnscan ")
         ],
         [
-            InlineKeyboardButton("🔑 Vérifier mot de passe", switch_inline_query_current_chat="/checkpassword "),
-            InlineKeyboardButton("📊 Générer rapport", switch_inline_query_current_chat="/report")
+            InlineKeyboardButton("⌨️ /checkpassword", switch_inline_query_current_chat="/checkpassword "),
+            InlineKeyboardButton("⌨️ /report", switch_inline_query_current_chat="/report")
         ]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Créer des boutons d'action (démarrer conversation)
+    action_keyboard = [
+        [
+            InlineKeyboardButton("✓ Vérifier email/domaine", callback_data="cmd_breach"),
+            InlineKeyboardButton("🔍 Analyser URL", callback_data="cmd_url")
+        ],
+        [
+            InlineKeyboardButton("🕸️ Recherche Darkweb", callback_data="cmd_darkweb"),
+            InlineKeyboardButton("🛡️ Scanner vulnérabilités", callback_data="cmd_vuln")
+        ],
+        [
+            InlineKeyboardButton("🔑 Vérifier mot de passe", callback_data="cmd_password"),
+            InlineKeyboardButton("📊 Générer rapport", callback_data="cmd_report")
+        ]
+    ]
+    
+    # Créer un message avec les boutons de commande
+    await update.message.reply_html(welcome_message)
+    
+    # Envoyer un message séparé avec les boutons de commande (pour insérer dans la zone de texte)
+    await update.message.reply_text(
+        "📝 <b>Commandes cliquables</b> - Cliquez pour insérer la commande dans la zone de texte:",
+        reply_markup=InlineKeyboardMarkup(command_keyboard),
+        parse_mode=ParseMode.HTML
+    )
+    
+    # Envoyer un message séparé avec les boutons d'action (pour démarrer une conversation)
+    await update.message.reply_text(
+        "🚀 <b>Démarrer une analyse</b> - Cliquez pour commencer:",
+        reply_markup=InlineKeyboardMarkup(action_keyboard),
+        parse_mode=ParseMode.HTML
+    )
     
     # Envoyer le message avec les boutons
     await update.message.reply_html(welcome_message, reply_markup=reply_markup)
@@ -137,16 +169,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Ajouter des boutons pour faciliter l'utilisation des commandes
     keyboard = [
         [
-            InlineKeyboardButton("✓ Vérifier email", switch_inline_query_current_chat="/checkbreach "),
-            InlineKeyboardButton("🔍 Analyser URL", switch_inline_query_current_chat="/scanurl ")
+            InlineKeyboardButton("✓ Vérifier email", callback_data="cmd_breach"),
+            InlineKeyboardButton("🔍 Analyser URL", callback_data="cmd_url")
         ],
         [
-            InlineKeyboardButton("🕸️ Recherche Darkweb", switch_inline_query_current_chat="/checkdarkweb "),
-            InlineKeyboardButton("🛡️ Scanner domaine", switch_inline_query_current_chat="/vulnscan ")
+            InlineKeyboardButton("🕸️ Recherche Darkweb", callback_data="cmd_darkweb"),
+            InlineKeyboardButton("🛡️ Scanner domaine", callback_data="cmd_vuln")
         ],
         [
-            InlineKeyboardButton("🔑 Vérifier mot de passe", switch_inline_query_current_chat="/checkpassword "),
-            InlineKeyboardButton("📊 Générer rapport", switch_inline_query_current_chat="/report")
+            InlineKeyboardButton("🔑 Vérifier mot de passe", callback_data="cmd_password"),
+            InlineKeyboardButton("📊 Générer rapport", callback_data="cmd_report")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
