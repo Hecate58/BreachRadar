@@ -2,496 +2,180 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rapport de Cybersécurité</title>
+    <title>Rapport de Sécurité - BreacheRadar</title>
     <style>
-        /* Styles généraux */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
             color: #333;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
         }
-        
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #fff;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        h1, h2, h3, h4 {
-            color: #2c3e50;
-            margin-top: 1.5em;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #fff;
-            background-color: #2c3e50;
-            padding: 20px;
-            margin-top: 0;
-            border-radius: 5px 5px 0 0;
-        }
-        
-        /* Sections du rapport */
-        .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 5px;
-            border-left: 5px solid #3498db;
-        }
-        
-        /* En-tête du rapport */
         .report-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-        }
-        
-        .report-meta {
-            flex: 1;
-        }
-        
-        .company-info {
-            flex: 1;
-            text-align: right;
-        }
-        
-        /* Résumé et score global */
-        .summary-box {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 30px;
-        }
-        
-        .risk-score {
+            background-color: #f4f4f4;
+            padding: 10px;
             text-align: center;
             margin-bottom: 20px;
         }
-        
-        .score-circle {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
+        .risk-level {
             font-weight: bold;
-            color: white;
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
         }
+        .risk-low { background-color: #dff0d8; color: #3c763d; }
+        .risk-medium { background-color: #fcf8e3; color: #8a6d3b; }
+        .risk-high { background-color: #f2dede; color: #a94442; }
+        .risk-critical { background-color: #f2dede; color: #a94442; font-size: 1.2em; }
         
-        .score-label {
-            margin-top: 10px;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        
-        /* Tableaux */
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .section {
             margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
         }
-        
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
+        .section-title {
+            font-size: 1.2em;
             border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
         }
-        
-        th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-        }
-        
-        tr:hover {
-            background-color: #f8f9fa;
-        }
-        
-        /* Alertes et indicateurs */
-        .alert {
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-        }
-        
-        .alert-danger {
-            background-color: #f8d7da;
-            border-left: 5px solid #dc3545;
-            color: #721c24;
-        }
-        
-        .alert-warning {
-            background-color: #fff3cd;
-            border-left: 5px solid #ffc107;
-            color: #856404;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            border-left: 5px solid #28a745;
-            color: #155724;
-        }
-        
-        .alert-info {
-            background-color: #d1ecf1;
-            border-left: 5px solid #17a2b8;
-            color: #0c5460;
-        }
-        
-        /* Badges */
-        .badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-right: 5px;
-        }
-        
-        .badge-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        
-        .badge-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        
-        .badge-success {
-            background-color: #28a745;
-            color: white;
-        }
-        
-        .badge-info {
-            background-color: #17a2b8;
-            color: white;
-        }
-        
-        /* Graphiques et visualisations */
-        .chart-container {
-            margin: 20px 0;
-            text-align: center;
-        }
-        
-        /* Recommandations */
-        .recommendations {
-            background-color: #e9f7fe;
-            padding: 20px;
-            border-radius: 5px;
-            margin-top: 30px;
-        }
-        
-        .recommendations h3 {
-            color: #0056b3;
-            margin-top: 0;
-        }
-        
-        .recommendation-item {
-            margin-bottom: 15px;
-            padding-left: 25px;
-            position: relative;
-        }
-        
-        .recommendation-item:before {
-            content: "→";
-            position: absolute;
-            left: 0;
-            color: #0056b3;
-            font-weight: bold;
-        }
-        
-        /* Pied de page */
-        footer {
-            margin-top: 50px;
-            text-align: center;
-            color: #6c757d;
-            font-size: 14px;
-            padding: 20px;
-            border-top: 1px solid #ddd;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .report-header {
-                flex-direction: column;
-            }
-            
-            .company-info {
-                text-align: left;
-                margin-top: 20px;
-            }
+        .details {
+            margin-left: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Rapport de Cybersécurité</h1>
-        
-        <div class="report-header">
-            <div class="report-meta">
-                <h3>Rapport #{{ report_id }}</h3>
-                <p><strong>Date du rapport:</strong> {{ report_date }}</p>
-                <p><strong>Période analysée:</strong> {{ report_period }}</p>
-            </div>
-            <div class="company-info">
-                <h3>{{ company_name }}</h3>
-                <p>{{ company_contact }}</p>
-                <p>{{ company_email }}</p>
-            </div>
-        </div>
-        
-        <div class="summary-box">
-            <h2>Résumé Exécutif</h2>
-            <p>{{ executive_summary }}</p>
-            
-            <div class="risk-score">
-                <div class="score-circle" style="background-color: {{ score_color }};">
-                    {{ security_score }}/100
-                </div>
-                <div class="score-label">Score de Sécurité Global</div>
-            </div>
-            
-            <div class="alert alert-{{ risk_level_class }}">
-                <strong>Niveau de risque actuel: {{ risk_level }}</strong>
-                <p>{{ risk_description }}</p>
-            </div>
-        </div>
-        
-        <!-- Section des violations de données -->
-        <div class="section">
-            <h2>Violations de Données</h2>
-            
-            {% if breach_count > 0 %}
-                <div class="alert alert-danger">
-                    <strong>{{ breach_count }} violation(s) de données détectée(s)</strong>
-                </div>
-                
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Source</th>
-                            <th>Date</th>
-                            <th>Données compromises</th>
-                            <th>Sévérité</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for breach in breaches %}
-                        <tr>
-                            <td>{{ breach.name }}</td>
-                            <td>{{ breach.date }}</td>
-                            <td>{{ breach.data_classes }}</td>
-                            <td>
-                                <span class="badge badge-{{ breach.severity_class }}">
-                                    {{ breach.severity }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="alert alert-success">
-                    <strong>Aucune violation de données détectée</strong>
-                    <p>Continuez votre surveillance régulière pour maintenir ce niveau de sécurité.</p>
-                </div>
-            {% endif %}
-        </div>
-        
-        <!-- Section des URLs analysées -->
-        <div class="section">
-            <h2>Analyse d'URLs</h2>
-            
-            <p>{{ url_scan_summary }}</p>
-            
-            <table>
-                <thead>
-                    <tr>
-                        <th>URL</th>
-                        <th>Score de réputation</th>
-                        <th>Alertes détectées</th>
-                        <th>Statut</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for url in urls %}
-                    <tr>
-                        <td>{{ url.url }}</td>
-                        <td>{{ url.reputation_score }}/100</td>
-                        <td>{{ url.alert_count }}</td>
-                        <td>
-                            <span class="badge badge-{{ url.status_class }}">
-                                {{ url.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            {% if malicious_urls > 0 %}
-            <div class="alert alert-warning">
-                <strong>{{ malicious_urls }} URL(s) malveillante(s) détectée(s)</strong>
-                <p>Des URLs potentiellement dangereuses ont été identifiées. Voir la section des recommandations pour les actions à prendre.</p>
-            </div>
-            {% endif %}
-        </div>
-        
-        <!-- Section du darkweb -->
-        <div class="section">
-            <h2>Surveillance du Darkweb</h2>
-            
-            <div class="alert alert-{{ darkweb_alert_class }}">
-                <strong>Niveau de risque: {{ darkweb_risk_level }}</strong>
-                <p>{{ darkweb_summary }}</p>
-            </div>
-            
-            {% if darkweb_mentions > 0 %}
-            <h3>Mentions détectées</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Source</th>
-                        <th>Date</th>
-                        <th>Catégorie</th>
-                        <th>Contexte</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mention in darkweb_mentions %}
-                    <tr>
-                        <td>{{ mention.source }}</td>
-                        <td>{{ mention.date }}</td>
-                        <td>{{ mention.category }}</td>
-                        <td>{{ mention.context }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% endif %}
-        </div>
-        
-        <!-- Section des vulnérabilités -->
-        <div class="section">
-            <h2>Vulnérabilités Détectées</h2>
-            
-            {% if vuln_count > 0 %}
-                <div class="alert alert-{{ vuln_alert_class }}">
-                    <strong>{{ vuln_count }} vulnérabilité(s) détectée(s)</strong>
-                    <p>Score de risque: {{ vuln_risk_score }}/10</p>
-                </div>
-                
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Sévérité</th>
-                            <th>Description</th>
-                            <th>Recommandation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for vuln in vulnerabilities %}
-                        <tr>
-                            <td>
-                                {% if vuln.cve %}
-                                    {{ vuln.type }} ({{ vuln.cve }})
-                                {% else %}
-                                    {{ vuln.type }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge badge-{{ vuln.severity_class }}">
-                                    {{ vuln.severity }}
-                                </span>
-                            </td>
-                            <td>{{ vuln.description }}</td>
-                            <td>{{ vuln.recommendation }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="alert alert-success">
-                    <strong>Aucune vulnérabilité significative détectée</strong>
-                    <p>Continuez à maintenir vos systèmes à jour pour conserver ce niveau de sécurité.</p>
-                </div>
-            {% endif %}
-            
-            <h3>Informations sur le serveur</h3>
-            <table>
-                <tr>
-                    <th>Serveur</th>
-                    <td>{{ server_info.server }}</td>
-                </tr>
-                <tr>
-                    <th>Technologies détectées</th>
-                    <td>{{ server_info.technologies|join(', ') }}</td>
-                </tr>
-                <tr>
-                    <th>Dernière mise à jour</th>
-                    <td>{{ server_info.last_updated }}</td>
-                </tr>
-            </table>
-        </div>
-        
-        <!-- Section des mots de passe -->
-        <div class="section">
-            <h2>Sécurité des Mots de Passe</h2>
-            
-            <div class="alert alert-{{ password_alert_class }}">
-                <strong>{{ password_summary }}</strong>
-            </div>
-            
-            {% if compromised_passwords > 0 %}
-                <div class="alert alert-danger">
-                    <p>{{ compromised_passwords }} mot(s) de passe compromis détecté(s) dans des fuites de données.</p>
-                    <p>Il est fortement recommandé de changer immédiatement ces mots de passe.</p>
-                </div>
-            {% endif %}
-            
-            {% if weak_passwords > 0 %}
-                <div class="alert alert-warning">
-                    <p>{{ weak_passwords }} mot(s) de passe jugé(s) faible(s) ou insuffisant(s).</p>
-                    <p>Ces mots de passe ne répondent pas aux critères de sécurité recommandés.</p>
-                </div>
-            {% endif %}
-        </div>
-        
-        <!-- Section des recommandations -->
-        <div class="recommendations">
-            <h2>Recommandations Prioritaires</h2>
-            
-            <ol>
-                {% for recommendation in recommendations %}
-                <li class="recommendation-item">{{ recommendation }}</li>
+    <div class="report-header">
+        <h1>Rapport de Sécurité BreacheRadar</h1>
+        <p>Généré le : {{ timestamp }}</p>
+        <p>ID Utilisateur : {{ user_id }}</p>
+    </div>
+
+    <div class="risk-level risk-{{ overall_risk|lower }}">
+        Niveau de Risque Global : {{ overall_risk }}
+    </div>
+
+    {% if breach_data and breach_data.breaches %}
+    <div class="section">
+        <div class="section-title">Fuites de Données</div>
+        <div class="details">
+            <p>Score de Risque : {{ risk_scores.breach }}/10</p>
+            <ul>
+                {% for breach in breach_data.breaches %}
+                <li>
+                    <strong>{{ breach.name }}</strong> 
+                    ({{ breach.date }})
+                </li>
                 {% endfor %}
-            </ol>
-            
-            <div class="alert alert-info">
-                <strong>Prochaines étapes</strong>
-                <p>{{ next_steps }}</p>
-            </div>
+            </ul>
         </div>
-        
-        <footer>
-            <p>Rapport généré par le Bot de Cybersécurité - {{ report_date }}</p>
-            <p>Les informations contenues dans ce rapport sont confidentielles et destinées uniquement à l'usage de {{ company_name }}.</p>
-        </footer>
+    </div>
+    {% endif %}
+
+    {% if url_scan_data %}
+    <div class="section">
+        <div class="section-title">Analyse d'URL</div>
+        <div class="details">
+            <p>Score de Risque : {{ risk_scores.url }}/10</p>
+            <p>URL : {{ url_scan_data.url }}</p>
+            <p>Réputation : {{ url_scan_data.reputation }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if darkweb_data and darkweb_data.mentions %}
+    <div class="section">
+        <div class="section-title">Surveillance du Darkweb</div>
+        <div class="details">
+            <p>Score de Risque : {{ risk_scores.darkweb }}/10</p>
+            <ul>
+                {% for mention in darkweb_data.mentions %}
+                <li>{{ mention }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if vuln_scan_data and vuln_scan_data.vulnerabilities %}
+    <div class="section">
+        <div class="section-title">Scan de Vulnérabilités</div>
+        <div class="details">
+            <p>Score de Risque : {{ risk_scores.vuln }}/10</p>
+            <ul>
+                {% for vuln in vuln_scan_data.vulnerabilities %}
+                <li>
+                    <strong>{{ vuln.name }}</strong> 
+                    - Sévérité : {{ vuln.severity }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if password_check_data %}
+    <div class="section">
+        <div class="section-title">Vérification de Mot de Passe</div>
+        <div class="details">
+            <p>Score de Risque : {{ risk_scores.password }}/10</p>
+            <p>État : {% if password_check_data.is_compromised %}Compromis{% else %}Non compromis{% endif %}</p>
+            <p>Force du mot de passe : {{ password_check_data.strength }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <div class="section-title">Recommandations</div>
+        <div class="details">
+            <h3>Synthèse et Actions Recommandées :</h3>
+            <ol>
+                {% if breach_data and breach_data.breaches %}
+                <li>
+                    <strong>Fuites de Données :</strong>
+                    Changez immédiatement les mots de passe pour les comptes compromis et activez l'authentification à deux facteurs.
+                </li>
+                {% endif %}
+
+                {% if url_scan_data and url_scan_data.reputation != 'safe' %}
+                <li>
+                    <strong>URL Suspecte :</strong>
+                    Évitez de cliquer sur des liens non vérifiés et utilisez un navigateur avec protection contre les menaces web.
+                </li>
+                {% endif %}
+
+                {% if darkweb_data and darkweb_data.mentions %}
+                <li>
+                    <strong>Surveillance Darkweb :</strong>
+                    Soyez vigilant, vos informations personnelles peuvent avoir été exposées. Envisagez de surveiller vos comptes et de mettre à jour vos identifiants.
+                </li>
+                {% endif %}
+
+                {% if vuln_scan_data and vuln_scan_data.vulnerabilities %}
+                <li>
+                    <strong>Vulnérabilités Détectées :</strong>
+                    Mettez à jour vos systèmes et logiciels immédiatement. Corrigez les configurations de sécurité identifiées.
+                </li>
+                {% endif %}
+
+                {% if password_check_data and password_check_data.is_compromised %}
+                <li>
+                    <strong>Mot de Passe :</strong>
+                    Changez immédiatement votre mot de passe. Utilisez un gestionnaire de mots de passe et générez des mots de passe complexes et uniques.
+                </li>
+                {% endif %}
+            </ol>
+        </div>
+    </div>
+
+    <div class="report-footer">
+        <p>
+            <small>
+                Rapport généré par BreacheRadar_bot. 
+                Ces recommandations sont basées sur une analyse automatique et ne remplacent pas un conseil de sécurité professionnel.
+            </small>
+        </p>
     </div>
 </body>
 </html>
